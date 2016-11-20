@@ -35,7 +35,7 @@ describe('notary', () => {
       const badInputs = [
         ['a->a', ID, []],
         ['a->a->a', ID, ['a']],
-        // ['()->a', x => x, ['a']]
+        ['()->a', x => x, ['a']]
       ]
 
       badInputs.forEach(([sig, fn, args]) => {
@@ -131,7 +131,7 @@ describe('notary', () => {
 
       const tc = { 'x': { x: '' } }
       const goodInputs = [
-        //[tc, '() -> number', x => 1, []],
+        [tc, '() -> number',            IGNORE(1),         []],
         [tc, 'number -> number',        IGNORE(1),         [1]],
         [tc, 'string -> number',        IGNORE(1),         ['a']],
         [tc, 'number -> a -> number',   IGNORE(1),         [1, 'a']],

@@ -55,6 +55,7 @@ function parseSignature (signature) {
   const types = unparsedTypes
     .replace(/\s/g, '')
     .split('->')
+    .filter(type => type !== '()')
 
   return {constraints, types}
 }
