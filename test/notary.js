@@ -87,7 +87,7 @@ describe('notary', () => {
       badInputs.forEach(([tc, sig, fn, args]) => {
         assert.throws(() => {
           sign(tc, sig, fn)(...args)
-        }, /type class not found/)
+        }, /Type class not found/)
       })
     })
 
@@ -105,7 +105,7 @@ describe('notary', () => {
       badInputs.forEach(([tc, sig, fn, args]) => {
         assert.throws(() => {
           sign(tc, sig, fn)(...args)
-        }, /Unmet class constraints/)
+        }, /Unmet class constraint/)
       })
     })
 

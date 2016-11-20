@@ -1,24 +1,12 @@
-const CONCRETE_TYPES = [
-  'string',
-  'number',
-  'boolean',
-  'object',
-  'function',
-  'symbol'
-]
 
 export function sign (typeClasses, signature, fn) {
 
   const {constraints, types} = parseSignature(signature)
 
   const typedFn = function (...args) {
-
-    const constraintPredicates =
-      constraintsToPredicates(typeClasses, constraints)
-
-    checkSignature(constraintPredicates, args, types.slice(0, -1))
+    checkSignature(typeClasses, constraints, types.slice(0, -1), args)
     const result = fn(...args)
-    checkSignature(constraintPredicates, args.concat(result), types)
+    checkSignature(typeClasses, constraints, types, args.concat(result))
     return result
   }
 
@@ -26,7 +14,7 @@ export function sign (typeClasses, signature, fn) {
 }
 
 // todo: rethink name.
-export function addTypeClass (typeClasses, name, constraint) {
+  export function addTypeClass (typeClasses, name, constraint) {
   // todo: improve this to allow properties to lay in prototype chain.
   function objectToConstraint (a) {
     return function (b) {
@@ -46,40 +34,24 @@ export function addTypeClass (typeClasses, name, constraint) {
   return typeClasses
 }
 
-function constraintsToPredicates (typeClasses, constraints) {
 
-  const predicates = {}
 
-  // todo: improve readability. Flatmap it
-  Object.keys(constraints).forEach(typeVariableName => {
+// ----------------------------------------------------------------------------
+// Parsing.
+// ----------------------------------------------------------------------------
 
-    predicates[typeVariableName] = predicates[typeVariableName] || []
-
-    constraints[typeVariableName].forEach(typeClassName => {
-
-      if (!typeClasses.hasOwnProperty(typeClassName)) {
-        throw ReferenceError(`type class not found: ${typeClassName}`)
-      }
-
-      predicates[typeVariableName].push(typeClasses[typeClassName])
-    })
-  })
-
-  return predicates
-}
-
-// string -> { constraints: {}, types: [string] }
+// Signature = 'Num a, Ord a, Num b => string -> ...'
+// { constraints: { a: [Num, Ord], b: [Num], ... }, types: ['string', ...] }
 function parseSignature (signature) {
   const [,, unparsedConstraints, unparsedTypes] =
     signature.match(/^((.*)=>)?(.*)$/)
 
-  checkSignatureIntegrity(unparsedConstraints, unparsedTypes)
+  checkSignatureSyntax(unparsedConstraints, unparsedTypes)
 
   // eg: { a: ['Num', 'Ord'], b: ['Ord'], ... }
   const constraints = unparsedConstraints === undefined
     ? {}
     : parseConstraints(unparsedConstraints)
-  // todo: check typeClasses exist.
 
   const types = unparsedTypes
     .replace(/\s/g, '')
@@ -88,7 +60,7 @@ function parseSignature (signature) {
   return {constraints, types}
 }
 
-function checkSignatureIntegrity (unparsedConstraints, unparsedTypes) {
+function checkSignatureSyntax (unparsedConstraints, unparsedTypes) {
   if (!unparsedTypes || unparsedTypes.trim().length === 0) {
     throw new SyntaxError(
       `Malformed signature. Empty type list in signature '
@@ -160,10 +132,27 @@ function parseConstraints (unparsedConstraints) {
   }
 }
 
-function checkSignature (constraints, values, signature) {
-  checkTypes(inferTypes(values), signature)
-  checkTypeVariableConsistancy(inferTypes(values), signature)
-  checkConstraints(constraints, values, signature)
+
+
+// ----------------------------------------------------------------------------
+// Checking.
+// ----------------------------------------------------------------------------
+
+const CONCRETE_TYPES = [
+  'string',
+  'number',
+  'boolean',
+  'object',
+  'function',
+  'symbol'
+]
+
+function checkSignature (typeClasses, constraints, expectedTypes, values) {
+  const actualTypes = values.map(av => typeof av)
+
+  checkTypes(actualTypes, expectedTypes)
+  checkTypeVariableConsistancy(actualTypes, expectedTypes)
+  checkConstraints(typeClasses, constraints, values, expectedTypes)
 }
 
 function checkTypes (actualTypes, expectedTypes) {
@@ -185,40 +174,50 @@ function checkTypes (actualTypes, expectedTypes) {
     })
 }
 
-function checkTypeVariableConsistancy (actualTypes, signatureTypes) {
+function checkTypeVariableConsistancy (actualTypes, expectedTypes) {
   const typeVariables = {}
 
-  zip(signatureTypes, actualTypes)
-    .forEach(([st, at]) => {
-      if (isConcreteType(st)) return
-      typeVariables[st] = typeVariables[st] || at
-      if (typeVariables[st] !== at) {
+  zip(actualTypes, expectedTypes)
+    .forEach(([at, et]) => {
+      if (isConcreteType(et)) return
+      typeVariables[et] = typeVariables[et] || at
+      if (typeVariables[et] !== at) {
         throw new TypeError(
-          `Inconsistent type variable: expected ${st}, got ${at}`)
+          `Inconsistent type variable: expected ${et}, got ${at}`)
       }
     })
 }
 
-function checkConstraints (constraints, actualValues, signatureTypes) {
-
-  const signatureTypesConstraints = signatureTypes
-    .map(st => constraints[st] || [])
-
-  const unmetConstraints = zip(actualValues, signatureTypesConstraints)
-    .filter(([av, stcs]) => stcs.some(stc => !stc(av)))
-
-  if (unmetConstraints.length) {
-    throw new TypeError(
-      `Unmet class constraints: ${JSON.stringify(unmetConstraints)}`)
-  }
-}
-
-function inferTypes (actualValues) {
-  return actualValues.map(av => typeof av)
-}
-
 function isConcreteType (type) {
   return CONCRETE_TYPES.includes(type)
+}
+
+// typeClasses = { Num: fn(x), Ord: fn(x), ... }
+// constraints = { a: [Num, Ord], b: [Num], ... }
+// values = [ ...args, fn(...args) ] | [ ...args ]
+// expectedTypes = [ 'a', 'string', 'b', ... ]
+function checkConstraints (typeClasses, constraints, values, expectedTypes) {
+
+  zip(values, expectedTypes)
+    .forEach(([v, et]) => {
+      const expectedTypeClasses = constraints[et] || []
+      expectedTypeClasses
+        .forEach(etc => {
+          if (typeClasses[etc] === undefined) {
+            throw new ReferenceError(
+              `Type class not found: ${etc}`
+            )
+          }
+
+          const predicate = typeClasses[etc]
+          if (!predicate(v)) {
+            throw new TypeError(
+              `Unmet class constraint:
+              type variable ${et} should implement ${etc}`
+            )
+          }
+        })
+    })
 }
 
 function zip (a, b) {
