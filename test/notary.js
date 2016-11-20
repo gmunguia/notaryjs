@@ -2,11 +2,7 @@ import assert from 'assert'
 import { sign, addTypeClass } from '../src/notary'
 
 const ID = x => x
-const IGNORE = {
-  string: () => 'foo',
-  number: () => 1,
-  object: () => ({})
-}
+const IGNORE = (result) => ( () => result )
 
 describe('notary', () => {
   describe('#addTypeClass', () => {
@@ -31,7 +27,7 @@ describe('notary', () => {
       badSignatures.forEach(bs => {
         assert.throws(() => {
           sign({}, bs, ID)
-        }, SyntaxError)
+        }, /Malformed signature/)
       })
     })
 
@@ -45,47 +41,72 @@ describe('notary', () => {
       badInputs.forEach(([sig, fn, args]) => {
         assert.throws(() => {
           sign({}, sig, fn)(...args)
-        }, TypeError)
+        }, /Type list doesn't match actual values\. Bad type count/)
       })
     })
 
     it('should throw if signature types don\'t match actual types', () => {
-      // todo: add more cases.
-      const fn = sign({}, 'string->string', x => x)
-      assert.doesNotThrow(() => { fn('foo') })
-      assert.throws(() => { fn(1) }, TypeError)
-    })
-
-    it('should throw if variable types are not consistent', () => {
       const badInputs = [
-        ['a->a', IGNORE.object, ['a']],
-        ['a->a', IGNORE.string, [1]],
-        ['a->a->b', IGNORE.string, [1, 'a']],
-        ['a->b->a', IGNORE.string, [1, 'a']],
+        ['string->string', ID, [1]],
+        ['number->string', ID, [1]],
+        ['string->number', ID, ['a']],
+        ['function->number', ID, [ID]],
+        ['string->number->function', ID, ['a', 1]]
       ]
 
       badInputs.forEach(([sig, fn, args]) => {
         assert.throws(() => {
           sign({}, sig, fn)(...args)
-        }, TypeError)
+        }, /Type list doesn't match actual values\. Wrong types/)
+      })
+    })
+
+    it('should throw if variable types are not consistent', () => {
+      const badInputs = [
+        ['a->a', IGNORE({}), ['a']],
+        ['a->a', IGNORE('a'), [1]],
+        ['a->a->b', IGNORE('a'), [1, 'a']],
+        ['a->b->a', IGNORE('a'), [1, 'a']],
+      ]
+
+      badInputs.forEach(([sig, fn, args]) => {
+        assert.throws(() => {
+          sign({}, sig, fn)(...args)
+        }, /Inconsistent type variable/)
       })
     })
 
     it('should throw if type class has not been defined', () => {
-      assert.throws(() => {
-        sign({}, 'foo a => a->a', IGNORE.object)({})
-      }, ReferenceError)
+      const typeClasses = addTypeClass({}, 'bar', ID)
+
+      const badInputs = [
+        [{}, 'foo a => a->a', IGNORE({}), [{}]],
+        [typeClasses, 'foo a => a->a', IGNORE({}), [{}]],
+      ]
+
+      badInputs.forEach(([tc, sig, fn, args]) => {
+        assert.throws(() => {
+          sign(tc, sig, fn)(...args)
+        }, /type class not found/)
+      })
     })
 
     it('should throw if constraints are not met', () => {
-      // todo: reuse code, add cases.
-      const typeClasses = addTypeClass({}, 'foo', { foo: '' })
-      assert.throws(() => {
-        sign(typeClasses, 'foo a => a->a', () => ({ foo: '' }))({})
-      }, TypeError)
-      assert.throws(() => {
-        sign(typeClasses, 'foo a => a->a', IGNORE.object)({ foo: '' })
-      }, TypeError)
+      const typeClassesFoo = addTypeClass({}, 'foo', { foo: '' })
+      const typeClassesBar = addTypeClass({}, 'bar', ID)
+
+      const badInputs = [
+        [typeClassesFoo, 'foo a => a->a', IGNORE({ foo: '' }), [{}]],
+        [typeClassesFoo, 'foo a => a->a', IGNORE({}), [{ foo: '' }]],
+        [typeClassesBar, 'bar a => a->a', IGNORE(1), [0]],
+        [typeClassesBar, 'bar a => a->a', IGNORE(false), [true]],
+      ]
+
+      badInputs.forEach(([tc, sig, fn, args]) => {
+        assert.throws(() => {
+          sign(tc, sig, fn)(...args)
+        }, /Unmet class constraints/)
+      })
     })
 
     it('should not throw otherwise', () => {
@@ -111,14 +132,14 @@ describe('notary', () => {
       const tc = addTypeClass({}, 'x', { x: '' })
       const goodInputs = [
         //[tc, '() -> number', x => 1, []],
-        [tc, 'number -> number',        IGNORE.number,      [1]],
-        [tc, 'string -> number',        IGNORE.number,      ['a']],
-        [tc, 'number -> a -> number',   IGNORE.number,      [1, 'a']],
-        [tc, 'a -> string -> a',        IGNORE.number,      [1, 'a']],
-        [tc, 'a -> b -> a',             IGNORE.number,      [1, 'a']],
-        [tc, 'a -> b -> b',             IGNORE.string,      [1, 'a']],
-        [tc, 'x a => a -> b -> b',      IGNORE.string,      [{ x: '' }, 'a']],
-        [tc, 'x a, x b => a -> b -> b', () => ({ x: '' } ), [{ x: '' }, { x: '' }]],
+        [tc, 'number -> number',        IGNORE(1),         [1]],
+        [tc, 'string -> number',        IGNORE(1),         ['a']],
+        [tc, 'number -> a -> number',   IGNORE(1),         [1, 'a']],
+        [tc, 'a -> string -> a',        IGNORE(1),         [1, 'a']],
+        [tc, 'a -> b -> a',             IGNORE(1),         [1, 'a']],
+        [tc, 'a -> b -> b',             IGNORE('a'),       [1, 'a']],
+        [tc, 'x a => a -> b -> b',      IGNORE('a'),       [{ x: '' }, 'a']],
+        [tc, 'x a, x b => a -> b -> b', IGNORE({ x: '' }), [{ x: '' }, { x: '' }]],
       ]
 
       goodInputs.forEach(([typeClasses, sig, fn, args]) => {

@@ -1,8 +1,10 @@
-const PRIMITIVE_TYPES = [
+const CONCRETE_TYPES = [
   'string',
   'number',
   'boolean',
-  'object'
+  'object',
+  'function',
+  'symbol'
 ]
 
 export function sign (typeClasses, signature, fn) {
@@ -32,6 +34,7 @@ export function addTypeClass (typeClasses, name, constraint) {
     }
   }
 
+  // todo: desired? add test in that case.
   if (typeClasses.hasOwnProperty(name)) {
     throw Error (`Type class '${name}' already exists.`)
   }
@@ -88,13 +91,13 @@ function parseSignature (signature) {
 function checkSignatureIntegrity (unparsedConstraints, unparsedTypes) {
   if (!unparsedTypes || unparsedTypes.trim().length === 0) {
     throw new SyntaxError(
-      `Empty type list in signature:
-      ${unparsedConstraints}=>${unparsedTypes}`)
+      `Malformed signature. Empty type list in signature '
+      ${unparsedConstraints}=>${unparsedTypes}'`)
   }
 
   if (/[^\w\s(->)(\(\))\[\]]/.test(unparsedTypes)) {
     throw new SyntaxError(
-      `Invalid characters in type list: ${unparsedTypes}`)
+      `Malformed signature. Invalid characters in type list '${unparsedTypes}'`)
   }
 
   unparsedTypes
@@ -104,21 +107,23 @@ function checkSignatureIntegrity (unparsedConstraints, unparsedTypes) {
       if (char === ']') --count
       if ((char === '-' && count !== 0) || count < 0) {
         throw new SyntaxError(
-          `Invalid use of brackets in type list: ${unparsedTypes}`)
+          `Malformed signature.
+          Invalid use of brackets in type list '${unparsedTypes}'`)
       }
       return count
     }, 0)
 
   if (unparsedTypes.split('->').length < 2) {
     throw new SyntaxError(
-      `Too few types in type list: ${unparsedTypes}`)
+      `Malformed signature. Too few types in type list '${unparsedTypes}'`)
   }
 
   if (!unparsedConstraints) return
 
   if (/[^\w\s,]/.test(unparsedConstraints)) {
     throw new SyntaxError(
-      `Invalid characters in constraints: ${unparsedConstraints}`)
+      `Malformed signature.
+      Invalid characters in class constraints '${unparsedConstraints}'`)
   }
 
   unparsedConstraints
@@ -127,8 +132,8 @@ function checkSignatureIntegrity (unparsedConstraints, unparsedTypes) {
     .forEach(c => {
       if (c.length !== 2) {
         throw SyntaxError(
-          `Malformed constraint: ${JSON.stringify(c)} in signature
-          ${unparsedConstraints}=>${unparsedTypes}`)
+          `Malformed signature. Malformed class constraint in signature
+          '${unparsedConstraints}=>${unparsedTypes}'`)
       }
     })
 }
@@ -156,9 +161,42 @@ function parseConstraints (unparsedConstraints) {
 }
 
 function checkSignature (constraints, values, signature) {
+  checkTypes(inferTypes(values), signature)
   checkTypeVariableConsistancy(inferTypes(values), signature)
   checkConstraints(constraints, values, signature)
-  checkTypes(inferTypes(values), signature)
+}
+
+function checkTypes (actualTypes, expectedTypes) {
+  if (actualTypes.length !== expectedTypes.length) {
+    throw new TypeError(
+      `Type list doesn't match actual values. Bad type count:
+      expected ${expectedTypes.length}, got ${actualTypes.length}`)
+  }
+
+  zip(actualTypes, expectedTypes)
+    .forEach(([at, et]) => {
+      // Type variable consistancy is not checked here.
+      if (!isConcreteType(et)) return
+      if (at !== et) {
+        throw new TypeError(
+          `Type list doesn't match actual values. Wrong types:
+          expected ${et}, got ${at}`)
+      }
+    })
+}
+
+function checkTypeVariableConsistancy (actualTypes, signatureTypes) {
+  const typeVariables = {}
+
+  zip(signatureTypes, actualTypes)
+    .forEach(([st, at]) => {
+      if (isConcreteType(st)) return
+      typeVariables[st] = typeVariables[st] || at
+      if (typeVariables[st] !== at) {
+        throw new TypeError(
+          `Inconsistent type variable: expected ${st}, got ${at}`)
+      }
+    })
 }
 
 function checkConstraints (constraints, actualValues, signatureTypes) {
@@ -171,37 +209,8 @@ function checkConstraints (constraints, actualValues, signatureTypes) {
 
   if (unmetConstraints.length) {
     throw new TypeError(
-      `unmet constraints: ${JSON.stringify(unmetConstraints)}`)
+      `Unmet class constraints: ${JSON.stringify(unmetConstraints)}`)
   }
-}
-
-function checkTypeVariableConsistancy (actualTypes, signatureTypes) {
-  const typeVariables = {}
-
-  zip(signatureTypes, actualTypes)
-    .forEach(([st, at]) => {
-      if (isConcreteType(st)) return
-      typeVariables[st] = typeVariables[st] || at
-      if (typeVariables[st] !== at) {
-        throw new TypeError('inconsistent type variables: expected ' + st +
-          ', got ' + at)
-      }
-    })
-}
-
-function checkTypes (actualTypes, expectedTypes) {
-  if (actualTypes.length !== expectedTypes.length) {
-    throw new TypeError('bad argument count: expected ' + expectedTypes.length +
-      ', got ' + actualTypes.length)
-  }
-
-  zip(actualTypes, expectedTypes)
-    .forEach(([at, et]) => {
-      if (!isConcreteType(et)) return // type variable consistancy is already checked.
-      if (at !== et) {
-        throw new TypeError('wrong types: expected ' + et + ', got ' + at)
-      }
-    })
 }
 
 function inferTypes (actualValues) {
@@ -209,7 +218,7 @@ function inferTypes (actualValues) {
 }
 
 function isConcreteType (type) {
-  return PRIMITIVE_TYPES.includes(type)
+  return CONCRETE_TYPES.includes(type)
 }
 
 function zip (a, b) {
