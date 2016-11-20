@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { sign, addTypeClass } from '../src/notary'
+import notary from '../src/notary'
 
 const ID = x => x
 const IGNORE = (result) => ( () => result )
@@ -26,7 +26,7 @@ describe('notary', () => {
 
       badSignatures.forEach(bs => {
         assert.throws(() => {
-          sign({}, bs, ID)
+          notary()(bs, ID)
         }, /Malformed signature/)
       })
     })
@@ -40,7 +40,7 @@ describe('notary', () => {
 
       badInputs.forEach(([sig, fn, args]) => {
         assert.throws(() => {
-          sign({}, sig, fn)(...args)
+          notary()(sig, fn)(...args)
         }, /Type list doesn't match actual values\. Bad type count/)
       })
     })
@@ -56,7 +56,7 @@ describe('notary', () => {
 
       badInputs.forEach(([sig, fn, args]) => {
         assert.throws(() => {
-          sign({}, sig, fn)(...args)
+          notary()(sig, fn)(...args)
         }, /Type list doesn't match actual values\. Wrong types/)
       })
     })
@@ -71,13 +71,13 @@ describe('notary', () => {
 
       badInputs.forEach(([sig, fn, args]) => {
         assert.throws(() => {
-          sign({}, sig, fn)(...args)
+          notary()(sig, fn)(...args)
         }, /Inconsistent type variable/)
       })
     })
 
     it('should throw if type class has not been defined', () => {
-      const typeClasses = addTypeClass({}, 'bar', ID)
+      const typeClasses = { 'bar': ID }
 
       const badInputs = [
         [{}, 'foo a => a->a', IGNORE({}), [{}]],
@@ -86,14 +86,14 @@ describe('notary', () => {
 
       badInputs.forEach(([tc, sig, fn, args]) => {
         assert.throws(() => {
-          sign(tc, sig, fn)(...args)
+          notary(tc)(sig, fn)(...args)
         }, /Type class not found/)
       })
     })
 
     it('should throw if constraints are not met', () => {
-      const typeClassesFoo = addTypeClass({}, 'foo', { foo: '' })
-      const typeClassesBar = addTypeClass({}, 'bar', ID)
+      const typeClassesFoo = { 'foo': { foo: '' } }
+      const typeClassesBar = { 'bar': ID }
 
       const badInputs = [
         [typeClassesFoo, 'foo a => a->a', IGNORE({ foo: '' }), [{}]],
@@ -104,7 +104,7 @@ describe('notary', () => {
 
       badInputs.forEach(([tc, sig, fn, args]) => {
         assert.throws(() => {
-          sign(tc, sig, fn)(...args)
+          notary(tc)(sig, fn)(...args)
         }, /Unmet class constraint/)
       })
     })
@@ -125,11 +125,11 @@ describe('notary', () => {
 
       goodSignatures.forEach(gs => {
         assert.doesNotThrow(() => {
-          sign({}, gs, ID)
+          notary()(gs, ID)
         })
       })
 
-      const tc = addTypeClass({}, 'x', { x: '' })
+      const tc = { 'x': { x: '' } }
       const goodInputs = [
         //[tc, '() -> number', x => 1, []],
         [tc, 'number -> number',        IGNORE(1),         [1]],
@@ -144,7 +144,7 @@ describe('notary', () => {
 
       goodInputs.forEach(([typeClasses, sig, fn, args]) => {
         assert.doesNotThrow(() => {
-          sign(typeClasses, sig, fn)(...args)
+          notary(typeClasses)(sig, fn)(...args)
         })
       })
     })

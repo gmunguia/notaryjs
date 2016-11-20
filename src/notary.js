@@ -1,5 +1,25 @@
 
-export function sign (typeClasses, signature, fn) {
+export default function notary (typeClasses = {}) {
+  const processedTypeClasses = {}
+
+  Object.keys(typeClasses)
+    .map(tcn => [tcn, typeClasses[tcn]])
+    .forEach(([name, behavior]) => {
+      processedTypeClasses[name] = typeof behavior === 'function'
+        ? behavior
+        : objectToPredicate(behavior)
+    })
+
+  function objectToPredicate (a) {
+    return function (b) {
+      return Object.keys(a).every(k => k in b)
+    }
+  }
+
+  return sign.bind(undefined, processedTypeClasses)
+}
+
+function sign (typeClasses, signature, fn) {
 
   const {constraints, types} = parseSignature(signature)
 
@@ -11,27 +31,6 @@ export function sign (typeClasses, signature, fn) {
   }
 
   return typedFn
-}
-
-// todo: rethink name.
-  export function addTypeClass (typeClasses, name, constraint) {
-  // todo: improve this to allow properties to lay in prototype chain.
-  function objectToConstraint (a) {
-    return function (b) {
-      return Object.keys(a).every(k => b.hasOwnProperty(k))
-    }
-  }
-
-  // todo: desired? add test in that case.
-  if (typeClasses.hasOwnProperty(name)) {
-    throw Error (`Type class '${name}' already exists.`)
-  }
-
-  typeClasses[name] = typeof constraint === 'function'
-    ? constraint
-    : objectToConstraint(constraint)
-
-  return typeClasses
 }
 
 
