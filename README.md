@@ -5,5 +5,4 @@ Library allowing type checking of functions at runtime.
 Still under development.
 
 ## Pending features:
-* Array types '[]'
-* Empty type '()'
+* Improve error messages
