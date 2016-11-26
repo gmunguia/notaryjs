@@ -1,7 +1,6 @@
 # notaryjs v0.2.0
 
-Library allowing type checking of functions at runtime, using haskell-like
-function signatures.
+Library allowing type checking of functions at runtime, using haskell-like function signatures.
 
 ## Install
 
@@ -13,9 +12,9 @@ Take into account the library is written in es6, so babel or another transpiler 
 
 ### Basic: type signatures
 ```
-import notary from '<path-to-library-folder>/notary'
+import { sign } from '<path-to-library-folder>/notary'
 
-const addNumbers = notary().sign('number -> number -> number', (n, m) => n + m)
+const addNumbers = sign('number -> number -> number', (n, m) => n + m)
 
 // The next call will work seamlessly.
 const one = addNumbers(.5, .5)
@@ -26,13 +25,13 @@ const two = addNumbers('one', 1)
 
 ### Advanced: type classes
 ```
-import notary from '<path-to-library-folder>/notary'
+import { notary } from '<path-to-library-folder>/notary'
 
-const trainedNotary = notary({
+const sign = notary({
   int: i => typeof i === 'number' && i % 1 === 0
 })
 
-const addIntegers = trainedNotary.sign('int i => i -> i -> i', (i, j) => i + j)
+const addIntegers = sign('int i => i -> i -> i', (i, j) => i + j)
 
 // The next call will work seamlessly.
 const five = addIntegers(1, 4)
@@ -50,7 +49,7 @@ The first parameter must contain one key for each type class. Their values can e
 * a function, which will be used to test whether a value matches the type class. It's first argument will be the value to test, and must return a truthy value if the test is passed, and a falsy value otherwise.
 Example:
 ```
-const trainedNotary = notary({
+const sign = notary({
     letter: le => typeof le === 'string' && le.length === 1
 })
 ```
@@ -58,7 +57,7 @@ const trainedNotary = notary({
 * another object. In this case, values will match the type class if all the properties in the object are defined for them (or in their protoype chain).
 Example:
 ```
-const trainedNotary = notary({
+const sign = notary({
     point: {
       x: 'x coordinate of the point',
       y: 'y coordinate of the point'
@@ -89,16 +88,18 @@ Allowed types are:
 
 Examples:
 ```
-const words = notary().sign(
+const basicSign = notary()
+
+const words = basicSign(
   'string -> [string]',
   str => str.split(' ').filter( w => w !== '' ).map( w => w.trim() )
 )
 
-const trainedNotary = notary({
+const advancedSign = notary({
   functor: { fmap: '' }
 })
 
-const apply = trainedNotary.sign(
+const apply = advancedSign(
   'functor f => function -> f -> f',
   (callback, f) => f.fmap(callback)
 )

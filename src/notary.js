@@ -1,14 +1,14 @@
+function notary (typeClasses = {}) {
 
-export default function notary (typeClasses = {}) {
-  const processedTypeClasses = {}
-
-  Object.keys(typeClasses)
+  const processedTypeClasses = Object.keys(typeClasses)
     .map(tcn => [tcn, typeClasses[tcn]])
-    .forEach(([name, behavior]) => {
-      processedTypeClasses[name] = typeof behavior === 'function'
+    .reduce( (ptc, [name, behavior]) => {
+      ptc[name] = typeof behavior === 'function'
         ? behavior
         : objectToPredicate(behavior)
-    })
+
+      return ptc
+    }, {})
 
   function objectToPredicate (a) {
     return function (b) {
@@ -16,24 +16,31 @@ export default function notary (typeClasses = {}) {
     }
   }
 
-  return sign.bind(undefined, processedTypeClasses)
+  return signWithClasses.bind(undefined, processedTypeClasses)
 }
 
-function sign (typeClasses, signature, fn) {
+function signWithClasses (typeClasses, signature, fn) {
 
-  const {constraints, types} = parseSignature(signature)
-  // todo: add explicit static check, check existance of typeClasses here.
+  const {constraints, types} = parseCheckSignature(signature, typeClasses)
 
   const typedFn = function (...args) {
-    checkSignature(typeClasses, constraints, types.slice(0, -1), args)
-    const result = fn(...args)
-    checkSignature(typeClasses, constraints, types, args.concat([result]))
-    return result
+    try {
+      checkSignature(typeClasses, constraints, types.slice(0, -1), args)
+      const result = fn(...args)
+      checkSignature(typeClasses, constraints, types, args.concat([result]))
+      return result
+    }
+    catch (e) {
+      e.message = `Failed checking signature '${signature}': ${e.message}`
+      throw e
+    }
   }
 
   return typedFn
 }
 
+export { notary }
+export const sign = signWithClasses.bind(undefined, {})
 
 
 // ----------------------------------------------------------------------------
@@ -42,132 +49,108 @@ function sign (typeClasses, signature, fn) {
 
 // Signature = 'Num a, Ord a, Num b => string -> ...'
 // { constraints: { a: [Num, Ord], b: [Num], ... }, types: ['string', ...] }
-function parseSignature (signature) {
-  const [,, unparsedConstraints, unparsedTypes] =
-    signature.match(/^((.*)=>)?(.*)$/)
+function parseCheckSignature (signature, typeClasses) {
+  const { constraints, types } = (function () {
+    try {
+      const { constraints, unparsedTypes } = parseConstraints(signature)
+      const types = parseTypes(unparsedTypes)
+      return { constraints, types }
+    }
+    catch (e) {
+      e.message = `Malformed signature '${signature}': ${e.message}`
+      throw e
+    }
+  }());
 
-  checkSignatureSyntax(unparsedConstraints, unparsedTypes)
-
-  // eg: { a: ['Num', 'Ord'], b: ['Ord'], ... }
-  const constraints = unparsedConstraints === undefined
-    ? {}
-    : parseConstraints(unparsedConstraints)
-
-  const types = parseTypes(unparsedTypes)
+  // Make sure all type classes have been declared.
+  Object.keys(constraints)
+    .map(k => constraints[k])
+    // Flatten array.
+    .reduce( (allNames, thisNames) => allNames.concat(thisNames), [])
+    .forEach(typeClassName => {
+      if (!typeClasses.hasOwnProperty(typeClassName)) {
+        throw ReferenceError(`Type class '${typeClassName}' is not defined.`)
+      }
+    })
 
   return {constraints, types}
 }
 
-function checkSignatureSyntax (unparsedConstraints, unparsedTypes) {
-  if (!unparsedTypes || unparsedTypes.trim().length === 0) {
-    throw new SyntaxError(
-      `Malformed signature. Empty type list in signature '
-      ${unparsedConstraints}=>${unparsedTypes}'`)
-  }
+// 'Num a, Ord a, Num b => a->a->b' -> {
+//    constraints: { a: ['Num', 'Ord'], b : ['Num'] },
+//    unparsedTypes: ' a->a->b'
+// }
+function parseConstraints (signature) {
+  // Omit if no constraint block is found.
+  if (!/=>/.test(signature)) return { constraints: {}, unparsedTypes: signature }
 
-  const simpleArrow = '-(?=>)'
-  const emptyType = '\\((?\\)>)'
-  const alphanumeric = 'A-Za-z0-9'
-  const brackets = '\\[\\]'
-  const disallowedChars = new RegExp(
-    `[^${alphanumeric}${simpleArrow}${emptyType}${brackets}\\s]`)
-
-  if (disallowedChars.test(unparsedTypes)) {
-    throw new SyntaxError(
-      `Malformed signature. Invalid characters in type list '${unparsedTypes}'`)
-  }
-
-  unparsedTypes
-    .replace(/\s/g, '')
-    .split('->')
-    .filter(type => type !== '()')
-    .forEach(ut => {
-      const matches = ut.match(/^\[*([^\[\]]*)\]*$/)
-
-      if (matches === null) {
-        throw new SyntaxError(
-          `Malformed signature.
-          Invalid usage of brackets in type list '${unparsedTypes}'`)
-      }
-    })
-
-  unparsedTypes
+  const [unparsedTypes, constraints] = signature
     .split('')
-    .reduce((count, char) => {
-      if (char === '[') return count + 1
-      if (char === ']') return count - 1
-      if ((char === '-' && count !== 0) || count < 0) {
-        throw new SyntaxError(
-          `Malformed signature.
-          Unbalanced brackets in type list '${unparsedTypes}'`)
+    .reduce( ([buffer, constraints, finished], char) => {
+      if (finished) return [buffer + char, constraints, true]
+
+      switch (char) {
+      case ',':
+      case '=': {
+        // Buffer must contain class-variable pair. Parse it and continue.
+        const matches = buffer
+          .trim()
+          .match(/^(?:,\s*)?(\w+)\s+(\w+)$/)
+
+        if (matches === null) {
+          throw SyntaxError(`Cannot parse class constraint '${buffer}'.`)
+        }
+
+        const [, typeClassName, typeVariableName] = matches
+        constraints[typeVariableName] = constraints[typeVariableName] || []
+        constraints[typeVariableName].push(typeClassName)
+        return [char, constraints, false]
       }
-      return count
-    }, 0)
+      case '>': {
+        // Constraint block finished. Make sure arrow is not malformed and
+        // set flag to skip the following iterations.
+        if (buffer !== '=') {
+          throw SyntaxError('Found extraneous \'>\' in class constraints.')
+        }
 
-  if (unparsedTypes.split('->').length < 2) {
-    throw new SyntaxError(
-      `Malformed signature. Too few types in type list '${unparsedTypes}'`)
-  }
-
-  if (!unparsedConstraints) return
-
-  if (/[^\w\s,]/.test(unparsedConstraints)) {
-    throw new SyntaxError(
-      `Malformed signature.
-      Invalid characters in class constraints '${unparsedConstraints}'`)
-  }
-
-  unparsedConstraints
-    .split(',')
-    .map(c => c.split(' ').filter(x => x !== ''))
-    .forEach(c => {
-      if (c.length !== 2) {
-        throw SyntaxError(
-          `Malformed signature. Malformed class constraint in signature
-          '${unparsedConstraints}=>${unparsedTypes}'`)
+        return ['', constraints, true]
       }
-    })
-}
+      default: {
+        return [buffer + char, constraints, false]
+      }
+      }
+    }, ['', {}, false])
 
-// 'Num a, Ord a, Num b' -> { a: ['Num', 'Ord'], b : ['Num'] }
-function parseConstraints (unparsedConstraints) {
-
-  const constraintsList = unparsedConstraints
-    .split(',')
-    // Split, remove empty elements caused by multiple consecutive spaces.
-    .map(c => c.split(' ').filter(x => x !== ''))
-    // Prepare for turning into dictionary.
-    .map(([v, k]) => [k, v])
-
-  return toDictionary(constraintsList)
-
-  function toDictionary (a) {
-    const dict = {}
-    a.forEach(([k, v]) => {
-      dict[k] = dict[k] || []
-      dict[k].push(v)
-    })
-    return dict
-  }
+  return { constraints, unparsedTypes }
 }
 
 function parseTypes (unparsedTypes) {
-  return unparsedTypes
+  const splittedUnparsedTypes = unparsedTypes
     .replace(/\s/g, '')
     .split('->')
+
+  if (splittedUnparsedTypes.length < 2) {
+    throw new SyntaxError('Type list too short. Expected at least two types.')
+  }
+
+  return splittedUnparsedTypes
     .filter(type => type !== '()')
     .map(ut => {
-      const matches = ut.match(/^\[*([^\[\]]*)\]*$/)
+      const matches = ut.match(/^\[*([\w]*)\]*$/)
       // todo: do this check in syntax checking.
       if (matches === null) {
-        throw new SyntaxError(
-          `Uncaught syntax error in type list '${unparsedTypes}'`)
+        throw new SyntaxError(`Cannot parse type '${ut}'.`)
       }
 
-      const baseType = matches[1]
-      const depth = ut.split('[').length - 1
+      const [, baseType] = matches
+      const depthLeft = ut.split('[').length - 1
+      const depthRight = ut.split(']').length - 1
 
-      return { baseType, depth }
+      if (depthLeft !== depthRight) {
+        throw new SyntaxError(`Unbalanced brackets in type '${ut}'.`)
+      }
+
+      return { baseType, depth: depthLeft }
     })
 }
 
@@ -285,11 +268,13 @@ function inferType (value) {
 
   const typeOfFirstElement = inferType(value[0])
 
-  // Check homogeneity or array.
   const typeOfElements = value.map(inferType)
-  // todo: treat Unhomogeneous arrays as objects, instead of throw.
   if (!isArrayHomogeneous(typeOfElements, compareTypes)) {
-    throw new TypeError(`Unhomogeneous array: ${value}`)
+    // Treat Unhomogeneous arrays as objects.
+    return {
+      depth: 0,
+      baseType: 'object'
+    }
   }
 
   return {
@@ -299,13 +284,10 @@ function inferType (value) {
 }
 
 function compareTypes (a, b) {
-  // Corner case: array was empty; couldn't infer type, so it matches anything.
-  if (a.baseType === 'undefined' && a.depth <= b.depth
-      || b.baseType === 'undefined' && b.depth <= a.depth) {
-
-    return true
-  }
   return a.baseType === b.baseType && a.depth === b.depth
+    // Corner case: array was empty; couldn't infer type, so it matches anything.
+    || a.baseType === 'undefined' && a.depth <= b.depth
+    || b.baseType === 'undefined' && b.depth <= a.depth
 }
 
 function isTypeVariable (type) {
@@ -334,13 +316,7 @@ function checkConstraints (typeClasses, constraints, typeVariableValues) {
     .filter(x => x.length)
     // Add predicates.
     .map(( [vn, cn] ) => {
-      const predicate = typeClasses[cn]
-      if (predicate === undefined) {
-        throw new ReferenceError(
-          `Unmet class constraint '${cn}'. Type class is not defined.`
-        )
-      }
-      return [vn, cn, predicate]
+      return [vn, cn, typeClasses[cn]]
     })
     // Filter out type classes without predicates.
     .filter(( [,, p] ) => p)

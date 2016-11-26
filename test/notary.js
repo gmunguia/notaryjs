@@ -1,9 +1,9 @@
 import assert from 'assert'
-import notary from '../src/notary'
+import { sign, notary } from '../src/notary'
 
 describe('notary', () => {
   const ID = x => x
-  const IGNORE = (result) => ( () => result )
+  const RETURN = (result) => ( () => result )
 
   it('should throw if the signature is malformed', () => {
     const badSignatures = [
@@ -25,7 +25,7 @@ describe('notary', () => {
 
     badSignatures.forEach(bs => {
       assert.throws(() => {
-        notary()(bs, ID)
+        sign(bs, ID)
       }, /Malformed signature/)
     })
   })
@@ -35,84 +35,84 @@ describe('notary', () => {
       ['a->a', ID, []],
       ['a->a->a', ID, ['a']],
       ['()->a', x => x, ['a']],
-      ['()->[[number]]', IGNORE([[1]]), [1]],
+      ['()->[[number]]', RETURN([[1]]), [1]],
     ]
 
     badInputs.forEach(([sig, fn, args]) => {
       assert.throws(() => {
-        notary()(sig, fn)(...args)
+        sign(sig, fn)(...args)
       }, /Type list doesn't match actual values\. Bad type count/)
     })
   })
 
-  ;(function () {
+  {
     const badInputs = [
       ['string->string', ID, [1]],
       ['number->string', ID, [1]],
       ['string->number', ID, ['a']],
       ['function->number', ID, [ID]],
-      ['[function]->number', IGNORE(1), [ID]],
-      ['()->[number]', IGNORE(1), []],
-      ['()->[[number]]', IGNORE([1]), []],
+      ['[function]->number', RETURN(1), [ID]],
+      ['()->[number]', RETURN(1), []],
+      ['()->[[number]]', RETURN([1]), []],
       ['string->number->function', ID, ['a', 1]],
     ]
 
     badInputs.forEach(([sig, fn, args]) => {
       it('should throw if signature types don\'t match actual types', () => {
         assert.throws(() => {
-          notary()(sig, fn)(...args)
+          sign(sig, fn)(...args)
         }, /Type list doesn't match actual values\. Wrong types/)
       })
     })
-  }())
+  }
 
-  ;(function () {
+  {
     const badInputs = [
-      ['a->a', IGNORE({}), ['a']],
-      ['a->a', IGNORE('a'), [1]],
-      ['a->a->b', IGNORE('a'), [1, 'a']],
-      ['a->b->a', IGNORE('a'), [1, 'a']],
-      ['[a]->b->a', IGNORE([1]), [[1], 'a']],
-      ['[a]->b->[a]', IGNORE([[1]]), [[1], 'a']],
+      ['a->a', RETURN({}), ['a']],
+      ['a->a', RETURN('a'), [1]],
+      ['a->a->b', RETURN('a'), [1, 'a']],
+      ['a->b->a', RETURN('a'), [1, 'a']],
+      ['[a]->b->a', RETURN([1]), [[1], 'a']],
+      ['[a]->b->[a]', RETURN([[1]]), [[1], 'a']],
     ]
 
     badInputs.forEach(([sig, fn, args]) => {
       it('should throw if variable types are not consistent', () => {
         assert.throws(() => {
-          notary()(sig, fn)(...args)
+          sign(sig, fn)(...args)
         }, /Inconsistent type variable/)
       })
     })
-  }())
+  }
 
-  ;(function () {
+  {
     const typeClasses = { 'bar': ID }
 
     const badInputs = [
-      [{}, 'foo a => a->a', IGNORE({}), [{}]],
-      [typeClasses, 'foo a => a->a', IGNORE({}), [{}]],
+      [{}, 'foo a => a->a', RETURN({}), [{}]],
+      [typeClasses, 'foo a => a->a', RETURN({}), [{}]],
     ]
 
     badInputs.forEach(([tc, sig, fn, args]) => {
       it('should throw if type class has not been defined', () => {
         assert.throws(() => {
           notary(tc)(sig, fn)(...args)
-        }, /Type class is not defined/)
+        }, /Type class '.*' is not defined/)
       })
     })
-  }())
+  }
 
-  ;(function () {
+  {
     const typeClassesFoo = { 'foo': { foo: '' } }
     const typeClassesBar = { 'bar': ID }
 
     const badInputs = [
-      [typeClassesFoo, 'foo a => a->a', IGNORE({ foo: '' }), [{}]],
-      [typeClassesFoo, 'foo a => a->a', IGNORE({}), [{ foo: '' }]],
-      [typeClassesBar, 'bar a => a->a', IGNORE(1), [0]],
-      [typeClassesBar, 'bar a => a->a', IGNORE(false), [true]],
-      [typeClassesBar, 'bar a => [a]->[a]', IGNORE([false]), [[true]]],
-      //[typeClassesBar, 'bar a => [[a, a]]->[a]', IGNORE([true]), [[true, false]]] tupples not (yet) allowed.
+      [typeClassesFoo, 'foo a => a->a', RETURN({ foo: '' }), [{}]],
+      [typeClassesFoo, 'foo a => a->a', RETURN({}), [{ foo: '' }]],
+      [typeClassesBar, 'bar a => a->a', RETURN(1), [0]],
+      [typeClassesBar, 'bar a => a->a', RETURN(false), [true]],
+      [typeClassesBar, 'bar a => [a]->[a]', RETURN([false]), [[true]]],
+      //[typeClassesBar, 'bar a => [[a, a]]->[a]', RETURN([true]), [[true, false]]] tupples not (yet) allowed.
     ]
 
     badInputs.forEach(([tc, sig, fn, args]) => {
@@ -122,9 +122,10 @@ describe('notary', () => {
         }, /Unmet class constraint .* on type variable/)
       })
     })
-  }())
+  }
 
-  ;(function () {
+  {
+    const tc = { a: RETURN(true), c: RETURN(true) }
     const goodSignatures = [
       '() -> number',
       'number -> number',
@@ -144,30 +145,32 @@ describe('notary', () => {
     goodSignatures.forEach(gs => {
       it('should not throw if signature is properly formed', () => {
         assert.doesNotThrow(() => {
-          notary()(gs, ID)
+          notary(tc)(gs, ID)
         })
       })
     })
+  }
 
-    const tc = { x: { x: '' }, y: IGNORE(true) }
+  {
+    const tc = { x: { x: '' }, y: RETURN(true) }
     const goodInputs = [
-      [tc, '() -> number',            IGNORE(1),         []],
-      [tc, '()->[[number]]',          IGNORE([[1]]),     []],
-      [tc, 'number -> number',        IGNORE(1),         [1]],
-      [tc, 'string -> number',        IGNORE(1),         ['a']],
-      [tc, 'number -> a -> number',   IGNORE(1),         [1, 'a']],
-      [tc, 'a -> string -> a',        IGNORE(1),         [1, 'a']],
-      [tc, 'a -> b -> a',             IGNORE(1),         [1, 'a']],
-      [tc, 'a -> b -> b',             IGNORE('a'),       [1, 'a']],
-      [tc, '[a] -> b -> a',           IGNORE('a'),       [['b'], 1]],
-      [tc, '[string] -> b -> string', IGNORE('a'),       [['a'], 1]],
-      [tc, '[string] -> b -> string', IGNORE('a'),       [[], 1]],
-      [tc, '[a] -> b -> a',           IGNORE(1),         [[], 1]],
-      [tc, '[[a]] -> b -> a',         IGNORE(1),         [[], 1]],
-      [tc, 'y a => a -> b -> b',      IGNORE('a'),       [1, 'a']],
-      [tc, 'x a => a -> b -> b',      IGNORE('a'),       [{ x: '' }, 'a']],
-      [tc, 'x a, x b => a -> b -> b', IGNORE({ x: '' }), [{ x: '' }, { x: '' }]],
-      //[tc, 'x a => [[a, a]] -> a',    IGNORE({ x: '' }), [[[{ x: '' }, { x: '' }]]]] tuples not allowed yet.
+      [tc, '() -> number',            RETURN(1),         []],
+      [tc, '()->[[number]]',          RETURN([[1]]),     []],
+      [tc, 'number -> number',        RETURN(1),         [1]],
+      [tc, 'string -> number',        RETURN(1),         ['a']],
+      [tc, 'number -> a -> number',   RETURN(1),         [1, 'a']],
+      [tc, 'a -> string -> a',        RETURN(1),         [1, 'a']],
+      [tc, 'a -> b -> a',             RETURN(1),         [1, 'a']],
+      [tc, 'a -> b -> b',             RETURN('a'),       [1, 'a']],
+      [tc, '[a] -> b -> a',           RETURN('a'),       [['b'], 1]],
+      [tc, '[string] -> b -> string', RETURN('a'),       [['a'], 1]],
+      [tc, '[string] -> b -> string', RETURN('a'),       [[], 1]],
+      [tc, '[a] -> b -> a',           RETURN(1),         [[], 1]],
+      [tc, '[[a]] -> b -> a',         RETURN(1),         [[], 1]],
+      [tc, 'y a => a -> b -> b',      RETURN('a'),       [1, 'a']],
+      [tc, 'x a => a -> b -> b',      RETURN('a'),       [{ x: '' }, 'a']],
+      [tc, 'x a, x b => a -> b -> b', RETURN({ x: '' }), [{ x: '' }, { x: '' }]],
+      //[tc, 'x a => [[a, a]] -> a',    RETURN({ x: '' }), [[[{ x: '' }, { x: '' }]]]] tuples not allowed yet.
     ]
 
     goodInputs.forEach(([typeClasses, sig, fn, args]) => {
@@ -177,6 +180,6 @@ describe('notary', () => {
         })
       })
     })
-  }())
+  }
 
 })
