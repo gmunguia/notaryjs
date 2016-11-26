@@ -1,6 +1,6 @@
 {
   "name": "notaryjs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Small library providing function type checking at runtime.",
   "scripts": {
     "test": "./node_modules/.bin/mocha -r babel-polyfill --compilers js:babel-register"
