@@ -4,7 +4,7 @@ Library allowing type checking of functions at runtime, using haskell-like funct
 
 ## Install
 
-For general usage, only the file notary.js is needed. You can just copy that one into your library folder.
+For general usage, only the file notary.js is needed. You can just copy that one into your library folder. Another option is installing through npm: `npm install gmunguia/notaryjs`.
 
 Take into account the library is written in es6, so babel or another transpiler will be needed in most cases.
 

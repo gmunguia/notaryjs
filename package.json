@@ -1,7 +1,8 @@
 {
-  "name": "notaryjs",
+  "name": "notary",
   "version": "0.2.0",
   "description": "Small library providing function type checking at runtime.",
+  "main": "src/notary.js",
   "scripts": {
     "test": "./node_modules/.bin/mocha -r babel-polyfill --compilers js:babel-register"
   },
@@ -11,6 +12,7 @@
   },
   "keywords": [
     "type",
+    "signature",
     "javascript"
   ],
   "author": "Gerardo Munguia",
