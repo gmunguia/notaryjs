@@ -43,7 +43,7 @@ const six = addIntegers(1.5, 4.5)
 ## API
 
 ### notary(typeClasses)
-Initialize a notary, passing in an object containing all the type classes that will be used in signature constraints. The returned object will contain the `sign` function described later.
+Create a sign function, passing in an object containing all the type classes that will be used in signature constraints. The returned `sign` function is described later.
 
 The first parameter must contain one key for each type class. Their values can either be:
 * a function, which will be used to test whether a value matches the type class. It's first argument will be the value to test, and must return a truthy value if the test is passed, and a falsy value otherwise.
@@ -65,8 +65,8 @@ const sign = notary({
 })
 ```
 
-### notary#sign(signature, function)
-Creates a typed function. It's first argument is a string containing a haskell-like type signature, the second one is the function to be typed. It returns a function just like the one passed in, only this one will throw errors whenever the signature is violated.
+### sign(signature, function)
+Creates a typed function. It's first argument is a string containing a haskell-like type signature, the second one is the function to be typed. It returns a function just like the one passed in, only this one will throw errors whenever the signature is violated. It can be used straight from the library for basic signatures, or previous creation with notary() for class-constrained signatures.
 
 Valid signatures must have the following structure:
 ```
