@@ -15,7 +15,7 @@
     "signature",
     "javascript"
   ],
-  "author": "Gerardo Munguia",
+  "author": "Gerardo Munguia <gerardomunguiahoyo@gmail.com>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/gmunguia/notaryjs/issues"

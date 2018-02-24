@@ -1,31 +1,32 @@
-# notaryjs v0.2.0
+[![npm version](https://img.shields.io/npm/v/notaryjs.svg)](https://www.npmjs.com/package/notaryjs)
+[![CircleCI build](https://img.shields.io/circleci/project/github/gmunguia/notaryjs.svg)](https://circleci.com/gh/gmunguia/notaryjs/tree/master)
+
+# notaryjs
 
 Library allowing type checking of functions at runtime, using haskell-like function signatures.
 
 ## Install
 
-For general usage, only the file notary.js is needed. You can just copy that one into your library folder. Another option is installing through npm: `npm install gmunguia/notaryjs`.
-
-Take into account the library is written in es6, so babel or another transpiler will be needed in most cases.
+`npm install --save notaryjs`
 
 ## Usage
 
 ### Basic: type signatures
-```
-import { sign } from '<path-to-library-folder>/notary'
+```javascript
+import { sign } from 'notaryjs'
 
 const addNumbers = sign('number -> number -> number', (n, m) => n + m)
 
-// The next call will work seamlessly.
+// The following call will work seamlessly.
 const one = addNumbers(.5, .5)
 
-// The next call will throw an error, warning about a signature violation.
+// The following call will throw an error, warning about a signature violation.
 const two = addNumbers('one', 1)
 ```
 
 ### Advanced: type classes
-```
-import { notary } from '<path-to-library-folder>/notary'
+```javascript
+import { notary } from 'notaryjs'
 
 const sign = notary({
   int: i => typeof i === 'number' && i % 1 === 0
@@ -33,10 +34,10 @@ const sign = notary({
 
 const addIntegers = sign('int i => i -> i -> i', (i, j) => i + j)
 
-// The next call will work seamlessly.
+// The following call will work seamlessly.
 const five = addIntegers(1, 4)
 
-// The next call will throw an error, warning about signature violation.
+// The following call will throw an error, warning about signature violation.
 const six = addIntegers(1.5, 4.5)
 ```
 
@@ -48,7 +49,7 @@ Create a sign function, passing in an object containing all the type classes tha
 The first parameter must contain one key for each type class. Their values can either be:
 * a function, which will be used to test whether a value matches the type class. It's first argument will be the value to test, and must return a truthy value if the test is passed, and a falsy value otherwise.
 Example:
-```
+```javascript
 const sign = notary({
     letter: le => typeof le === 'string' && le.length === 1
 })
@@ -56,7 +57,7 @@ const sign = notary({
 
 * another object. In this case, values will match the type class if all the properties in the object are defined for them (or in their protoype chain).
 Example:
-```
+```javascript
 const sign = notary({
     point: {
       x: 'x coordinate of the point',
@@ -87,7 +88,7 @@ Allowed types are:
 * type variables (their name must not match any other type)
 
 Examples:
-```
+```javascript
 const basicSign = notary()
 
 const words = basicSign(
