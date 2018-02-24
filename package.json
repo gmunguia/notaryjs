@@ -1,6 +1,6 @@
 {
   "name": "notaryjs",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Small library providing function type checking at runtime.",
   "main": "lib/notary.js",
   "scripts": {
