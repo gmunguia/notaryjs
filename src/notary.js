@@ -60,7 +60,7 @@ function parseCheckSignature (signature, typeClasses) {
       e.message = `Malformed signature '${signature}': ${e.message}`
       throw e
     }
-  }());
+  }())
 
   // Make sure all type classes have been declared.
   Object.keys(constraints)
@@ -150,7 +150,7 @@ function parseTypes (unparsedTypes) {
         throw new SyntaxError(`Unbalanced brackets in type '${ut}'.`)
       }
 
-      return { baseType, depth: depthLeft }
+      return createType(baseType, depthLeft)
     })
 }
 
@@ -201,11 +201,12 @@ function extractTypeVariableValues (values, actualTypes, expectedTypes) {
       }
 
       // todo: get infered types as parameter to avoid calculating it again.
+
       // [[a]] can't match [string] (however, [a] can match [[string]]).
       if (et.depth > at.depth) {
         throw new TypeError(
           `Type list doesn't match actual values. Bad type depth:
-          expected '${et}', got '${v}'.`
+          expected ${et}, got ${v}.`
         )
       }
 
@@ -259,28 +260,22 @@ function checkTypeVariableConsistency (typeVariableValues) {
 // [] -> { depth: 1, baseType: 'undefined' }
 function inferType (value) {
   if (!Array.isArray(value)) {
-    return { depth: 0, baseType: typeof value }
+    return createType(typeof value)
   }
 
   // Corner case: array is empty; can't infer it's type.
   // 'undefined' is used as wildcard.
-  if (!value.length) return { depth: 1, baseType: 'undefined' }
+  if (!value.length) return createType('undefined', 1)
 
   const typeOfFirstElement = inferType(value[0])
 
   const typeOfElements = value.map(inferType)
   if (!isArrayHomogeneous(typeOfElements, compareTypes)) {
     // Treat Unhomogeneous arrays as objects.
-    return {
-      depth: 0,
-      baseType: 'object'
-    }
+    return createType('object')
   }
 
-  return {
-    depth: typeOfFirstElement.depth + 1,
-    baseType: typeOfFirstElement.baseType
-  }
+  return createType(typeOfFirstElement.baseType, typeOfFirstElement.depth + 1)
 }
 
 function compareTypes (a, b) {
@@ -351,4 +346,17 @@ function range (n) {
 
 function isArrayHomogeneous (array, compare) {
   return array.every(x => compare(x, array[0]))
+}
+
+function createType (baseType, depth = 0) {
+  return {
+    baseType,
+    depth,
+    toString() {
+      const { depth, baseType } = this
+      const leftBrackets = range(depth).map(() => '[')
+      const rightBrackets = range(depth).map(() => ']')
+      return `${leftBrackets}${baseType}${rightBrackets}`
+    }
+  }
 }
