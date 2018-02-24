@@ -4,6 +4,7 @@
 # notaryjs
 
 Library allowing type checking of functions at runtime, using haskell-like function signatures.
+Actually, a toy project for learning js back in the days.
 
 ## Install
 
