@@ -1,10 +1,11 @@
 {
-  "name": "notary",
+  "name": "notaryjs",
   "version": "0.2.0",
   "description": "Small library providing function type checking at runtime.",
-  "main": "src/notary.js",
+  "main": "lib/notary.js",
   "scripts": {
-    "test": "./node_modules/.bin/mocha -r babel-polyfill --compilers js:babel-register"
+    "build": "babel src -d lib",
+    "test": "mocha -r babel-polyfill --compilers js:babel-register"
   },
   "repository": {
     "type": "git",
