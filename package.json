@@ -7,16 +7,17 @@
     "build": "babel src -d lib",
     "test": "mocha -r babel-polyfill --compilers js:babel-register"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/gmunguia/notaryjs.git"
-  },
+  "repository": "gmunguia/countdown-promise",
   "keywords": [
     "type",
     "signature",
     "javascript"
   ],
-  "author": "Gerardo Munguia <gerardomunguiahoyo@gmail.com>",
+  "author": {
+    "name": "Gerardo Munguia",
+    "email": "<gerardomunguiahoyo@gmail.com>",
+    "url": "gmunguia.com"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/gmunguia/notaryjs/issues"
